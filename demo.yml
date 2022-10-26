@@ -1,0 +1,10 @@
+mirror: /dev/shm/mirror
+
+gits:
+  - name: git
+    url: git@github.com:git/git.git
+    commit: v2.38.1
+
+  - name: busybox
+    url: https://github.com/mirror/busybox.git
+    commit: master
