@@ -21,6 +21,9 @@ def get_args():
     clone_parser.add_argument('-c', '--clean', action='store_true', required=False,
                               default=False,
                               help='Clean gits (i.e., git clean -xdf)')
+    clone_parser.add_argument('-u', '--update', action='store_true', required=False,
+                              default=False,
+                              help='Runs \'git remote update\' on existing gits')
     clone_parser.add_argument('-w', '--wipe', action='store_true', required=False,
                               default=False,
                               help='Wipe gits, i.e., force re-cloning of gits')
@@ -39,7 +42,7 @@ def init_logger():
     LOG_FMT = ("[%(levelname)s] %(funcName)s():%(lineno)d   %(message)s")
     logging.basicConfig(
         #filename=settings.log_file(),
-        level=logging.DEBUG,
+        level=logging.INFO,
         format=LOG_FMT)
 
 

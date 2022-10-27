@@ -1,44 +1,55 @@
 from git import Repo
+from git import RemoteProgress
 import logging
 import pathlib
 import shutil
 
 import src
 
+class CloneProgress(RemoteProgress):
+    def update(self, op_code, cur_count, max_count=None, message=''):
+        print(message or "", end='\r')
+
 def show(args):
     print("show")
+
+
+def create_remote(repository, remote_name, remote_url):
+    remote = repository.create_remote(remote_name, url=remote_url)
+    assert remote.exists()
+
 
 def clone_git(src, dest, commit, upstream_url):
     logging.debug(f"src: {src}")
     logging.debug(f"dest: {dest}")
     logging.debug(f"commit: {commit}")
     logging.debug(f"upstream_url: {upstream_url}")
-    repository = Repo.clone_from(src, dest, no_checkout=True)
+    print(f"[+] {src} --> {dest}")
+    repository = Repo.clone_from(src, dest, no_checkout=True,
+                                 progress=CloneProgress())
     repository.git.checkout(commit)
     # Make an upstream remote for convenience
     create_remote(repository, "upstream", upstream_url)
 
 
-def create_remote(repository, remote_name, remote_url):
-    remote = repository.create_remote(remote_name, url=remote_url)
-
-
-def create_mirror(url, dest, name):
+def create_mirror(src, dest, name):
     logging.debug(f"Cloning mirror: {name}")
-    repository = Repo.clone_from(url, dest, no_checkout=True)
+    print(f"[+] {src} --> {dest}")
+    repository = Repo.clone_from(src, dest, no_checkout=True,
+                                 progress=CloneProgress())
     return repository
 
 
-def update_mirror(dest, name):
-    logging.debug(f"Updating mirror: {name}")
+def update_git(dest, name):
+    print(f"[u] {name} : {dest}")
     repository = Repo(dest)
-    repository.remotes.origin.fetch()
+    repository.git.remote('update')
 
 
 def wipe_path(dest):
     path = pathlib.Path(dest)
     if path.exists():
-        logging.debug(f"Removing: {dest}")
+        print(f"[-] {dest}")
         shutil.rmtree(path)
 
 
@@ -50,11 +61,9 @@ def clone(args, workdir):
         return
 
     # Todo:
-    # - Update if already cloned
-    # - Add progress bar (https://stackoverflow.com/questions/2472552/python-way-to-clone-a-git-repository)
     # - Use several threads
     # - Use partial clone
-    print(f"Start cloning {nbr_gits} ...")
+    print(f"{nbr_gits} gits found in {args.file} ...")
     for g in yml['gits']:
         git_name = g['name']
         git_url = g['url']
@@ -72,7 +81,8 @@ def clone(args, workdir):
 
             path = pathlib.Path(source)
             if path.exists():
-                update_mirror(source, git_name)
+                if args.update:
+                    update_git(source, git_name)
             else:
                 repository = create_mirror(git_url, source, git_name)
                 repository.git.checkout(git_commit)
@@ -80,7 +90,12 @@ def clone(args, workdir):
         if args.wipe:
             wipe_path(dest)
 
-        clone_git(source, dest, git_commit, git_url)
+        path = pathlib.Path(dest)
+        if path.exists():
+            if args.update:
+                update_git(dest, git_name)
+        else:
+            clone_git(source, dest, git_commit, git_url)
 
 
 def clone_main(args, workdir):
