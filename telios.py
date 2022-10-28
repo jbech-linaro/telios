@@ -6,6 +6,9 @@ import sys
 
 import src
 
+from icecream import install
+install()
+
 def get_args():
     parser = argparse.ArgumentParser(description='The perfect developer tool\n')
     subparsers = parser.add_subparsers(help='commands', dest="command")
@@ -30,6 +33,9 @@ def get_args():
     clone_parser.add_argument('--wipe-mirrors', action='store_true', required=False,
                               default=False,
                               help='Wipe all mirrors')
+    clone_parser.add_argument('-j', '--jobs', action='store', required=False,
+                              default=1, type=int,
+                              help='How many jobs to run in parallel')
 
     if len(sys.argv) < 2:
         parser.print_help()

@@ -1,5 +1,10 @@
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from git import Repo
 from git import RemoteProgress
+from multiprocessing import Pool, TimeoutError
+from random import randrange
+from threading import Thread, active_count
+from time import sleep
 import logging
 import pathlib
 import shutil
@@ -53,6 +58,46 @@ def wipe_path(dest):
         shutil.rmtree(path)
 
 
+#def clone_single(args, workdir, mirror, git_data):
+def clone_single(args, workdir, mirror, git_data):
+    #ic(args)
+    #ic(workdir)
+    #ic(mirror)
+    #ic(git_data)
+    git_name = git_data['name']
+    git_url = git_data['url']
+    git_commit = git_data['commit']
+
+    source = git_url
+    #ic(source)
+    dest = f"{workdir}/{git_name}"
+    #ic(dest)
+
+    if mirror:
+        source = f"{mirror}/{git_name}"
+
+        if args.wipe_mirrors:
+            wipe_path(source)
+
+        path = pathlib.Path(source)
+        if path.exists():
+            if args.update:
+                update_git(source, git_name)
+        else:
+            repository = create_mirror(git_url, source, git_name)
+            repository.git.checkout(git_commit)
+
+    if args.wipe:
+        wipe_path(dest)
+
+    path = pathlib.Path(dest)
+    if path.exists():
+        if args.update:
+            update_git(dest, git_name)
+    else:
+        clone_git(source, dest, git_commit, git_url)
+
+
 def clone(args, workdir):
     logging.debug(f"file {args.file}")
     yml = src.load_yml(args.file)
@@ -61,41 +106,18 @@ def clone(args, workdir):
         return
 
     # Todo:
-    # - Use several threads
+    # - Handle errors
     # - Use partial clone
+    # - Remove ic's
     print(f"{nbr_gits} gits found in {args.file} ...")
-    for g in yml['gits']:
-        git_name = g['name']
-        git_url = g['url']
-        git_commit = g['commit']
 
-        logging.debug(g)
-        source = git_url
-        dest = f"{workdir}/{git_name}"
+    mirror = yml.get('mirror', None)
 
-        if yml.get('mirror', None) is not None:
-            source = f"{yml['mirror']}/{git_name}"
-
-            if args.wipe_mirrors:
-                wipe_path(source)
-
-            path = pathlib.Path(source)
-            if path.exists():
-                if args.update:
-                    update_git(source, git_name)
-            else:
-                repository = create_mirror(git_url, source, git_name)
-                repository.git.checkout(git_commit)
-
-        if args.wipe:
-            wipe_path(dest)
-
-        path = pathlib.Path(dest)
-        if path.exists():
-            if args.update:
-                update_git(dest, git_name)
-        else:
-            clone_git(source, dest, git_commit, git_url)
+    with ThreadPoolExecutor(args.jobs) as executor:
+        for git_data in yml['gits']:
+            _ = executor.submit(clone_single, args, workdir, mirror, git_data)
+        #for future in as_completed(futures):
+        #    ic(future)
 
 
 def clone_main(args, workdir):
