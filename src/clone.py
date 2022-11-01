@@ -58,20 +58,13 @@ def wipe_path(dest):
         shutil.rmtree(path)
 
 
-#def clone_single(args, workdir, mirror, git_data):
 def clone_single(args, workdir, mirror, git_data):
-    #ic(args)
-    #ic(workdir)
-    #ic(mirror)
-    #ic(git_data)
     git_name = git_data['name']
     git_url = git_data['url']
     git_commit = git_data['commit']
 
     source = git_url
-    #ic(source)
     dest = f"{workdir}/{git_name}"
-    #ic(dest)
 
     if mirror:
         source = f"{mirror}/{git_name}"
@@ -106,9 +99,7 @@ def clone(args, workdir):
         return
 
     # Todo:
-    # - Handle errors
     # - Use partial clone
-    # - Remove ic's
     print(f"{nbr_gits} gits found in {args.file} ...")
 
     mirror = yml.get('mirror', None)
@@ -116,8 +107,10 @@ def clone(args, workdir):
     with ThreadPoolExecutor(args.jobs) as executor:
         for git_data in yml['gits']:
             _ = executor.submit(clone_single, args, workdir, mirror, git_data)
-        #for future in as_completed(futures):
-        #    ic(future)
+            #try:
+            #    result = future.result()
+            #except:
+            #    logging.error(f"Error when cloning {git_data}")
 
 
 def clone_main(args, workdir):
