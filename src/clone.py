@@ -24,14 +24,19 @@ def create_remote(repository, remote_name, remote_url):
     assert remote.exists()
 
 
-def clone_git(src, dest, commit, upstream_url):
+def clone_git(src, dest, commit, upstream_url, reference=False):
     logging.debug(f"src: {src}")
     logging.debug(f"dest: {dest}")
     logging.debug(f"commit: {commit}")
     logging.debug(f"upstream_url: {upstream_url}")
-    print(f"[+] {src} --> {dest}")
-    repository = Repo.clone_from(src, dest, no_checkout=True,
-                                 progress=CloneProgress())
+    if reference:
+        print(f"[+r] {src} --> {dest}")
+        repository = Repo.clone_from(upstream_url, dest, no_checkout=True,
+                                     progress=CloneProgress(), reference=src)
+    else:
+        print(f"[+] {src} --> {dest}")
+        repository = Repo.clone_from(src, dest, no_checkout=True,
+                                     progress=CloneProgress())
     repository.git.checkout(commit)
     # Make an upstream remote for convenience
     create_remote(repository, "upstream", upstream_url)
@@ -88,7 +93,10 @@ def clone_single(args, workdir, mirror, git_data):
         if args.update:
             update_git(dest, git_name)
     else:
-        clone_git(source, dest, git_commit, git_url)
+        if args.reference:
+            clone_git(source, dest, git_commit, git_url, reference=True)
+        else:
+            clone_git(source, dest, git_commit, git_url)
 
 
 def clone(args, workdir):
@@ -98,8 +106,6 @@ def clone(args, workdir):
     if nbr_gits < 1:
         return
 
-    # Todo:
-    # - Use partial clone
     print(f"{nbr_gits} gits found in {args.file} ...")
 
     mirror = yml.get('mirror', None)

@@ -36,6 +36,9 @@ def get_args():
     clone_parser.add_argument('-j', '--jobs', action='store', required=False,
                               default=1, type=int,
                               help='How many jobs to run in parallel')
+    clone_parser.add_argument('-r', '--reference', action='store_true', required=False,
+                              default=False,
+                              help='Use the mirror as a reference')
 
     if len(sys.argv) < 2:
         parser.print_help()
@@ -50,6 +53,7 @@ def init_logger():
         #filename=settings.log_file(),
         level=logging.INFO,
         format=LOG_FMT)
+    #logging.root.setLevel(logging.DEBUG)
 
 
 def main():
