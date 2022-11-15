@@ -1,0 +1,11 @@
+# st telios configuration
+compile:
+  - cmd: make
+    parameter:
+
+# Apt packages
+apt:
+  - 22.04:
+    - packages: pkg-config libx11-dev libxft-dev
+
+

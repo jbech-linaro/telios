@@ -3,8 +3,11 @@ import argparse
 import logging
 import os
 import sys
+import time
 
 import src
+
+from multiprocessing import cpu_count
 
 from icecream import install
 install()
@@ -40,6 +43,20 @@ def get_args():
                               default=False,
                               help='Use the mirror as a reference')
 
+    build_parser = subparsers.add_parser('build', help='Build and compile the project')
+    build_parser.add_argument('-f', '--file', action='store', required=False,
+                              default=None,
+                              help='Manifest file')
+    build_parser.add_argument('-j', '--jobs', action='store', required=False,
+                              default=cpu_count(), type=int,
+                              help='How many jobs to run in parallel')
+    build_parser.add_argument('--log-stderr', action='store_true', required=False,
+                              default=False,
+                              help='Log stderr from jobs to individual files')
+    build_parser.add_argument('--log-stdout', action='store_true', required=False,
+                              default=False,
+                              help='Log stdout from jobs to individual files')
+
     if len(sys.argv) < 2:
         parser.print_help()
         sys.exit(1)
@@ -63,12 +80,17 @@ def main():
 
     workdir = os.environ.get('TELIOS_WORKDIR', '/dev/shm/telios')
 
+    start = time.time()
     if args.command == "clone":
         src.clone_main(args, workdir)
+    elif args.command == "build":
+        src.build_main(args, workdir)
     else:
         logging.error("No command given")
 
-    print("Done!")
+    end = time.time()
+    delta = round(end - start, 2)
+    print(f"Done! Total time spent: {delta} seconds")
 
 
 if __name__ == "__main__":
