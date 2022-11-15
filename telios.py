@@ -40,6 +40,11 @@ def get_args():
                               default=False,
                               help='Use the mirror as a reference')
 
+    clone_parser = subparsers.add_parser('build', help='Build and compile the project')
+    clone_parser.add_argument('-f', '--file', action='store', required=False,
+                              default=None,
+                              help='Manifest file')
+
     if len(sys.argv) < 2:
         parser.print_help()
         sys.exit(1)
@@ -65,6 +70,8 @@ def main():
 
     if args.command == "clone":
         src.clone_main(args, workdir)
+    elif args.command == "build":
+        src.build_main(args, workdir)
     else:
         logging.error("No command given")
 

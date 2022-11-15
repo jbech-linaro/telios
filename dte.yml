@@ -1,0 +1,24 @@
+mirror: /dev/shm/mirror
+
+gits:
+  - name: buildroot
+    url: git@github.com:buildroot/buildroot.git
+    commit: 2020.08.2
+
+  - name: grub2
+    url: https://github.com/rhboot/grub2.git
+    commit: grub-2.04
+    depends_on: buildroot
+
+  - name: linux
+    url: https://github.com/torvalds/linux.git
+    commit: v5.9
+
+  - name: qemu
+    url: git@github.com:qemu/qemu.git
+    commit: v5.1.0
+
+  - name: u-boot
+    url: git@github.com:u-boot/u-boot.git
+    commit: v2020.10-rc5
+    depends_on: grub2 linux
