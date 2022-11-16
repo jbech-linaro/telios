@@ -75,23 +75,15 @@ def gather_projects(args, workdir):
     return projects
 
 
-def worker(task_queue, finalized_tasks_queue, projects):
-    while True:
-        workPiece = task_queue.get()
-        project = projects[workPiece]
-        print(f"\n--> Started {project.name}")
-        project.run()
-        task_queue.task_done()
-        finalized_tasks_queue.put(workPiece)
+def worker(node, projects, ts):
+    project = projects[node]
+    print(f"\n--> Started {project.name}")
+    project.run()
+    ts.done(node)
+    print(f"<-- Completed {node}")
 
 
 def run(projects):
-    global stages
-    task_queue = Queue()
-    finalized_tasks_queue = Queue()
-    Thread(target=worker, daemon=True, args=(task_queue, finalized_tasks_queue,
-           projects)).start()
-
     ts = TopologicalSorter()
 
     # Create the DAG, always add "itself".
@@ -101,15 +93,17 @@ def run(projects):
             ts.add(name, dependency)
 
     ts.prepare()
+    threads = list()
     while ts.is_active():
         for node in ts.get_ready():
-            task_queue.put(node)
+            x = Thread(target=worker, args=(node, projects, ts))
+            threads.append(x)
+            x.start()
 
-        node = finalized_tasks_queue.get()
-        ts.done(node)
-        print(f"<-- Completed {node}")
+    for thread in threads:
+        print("completing ...")
+        thread.join()
 
-    task_queue.join()
 
 
 def print_build_order(dag):
