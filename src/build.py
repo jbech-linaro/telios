@@ -5,6 +5,7 @@ from graphlib import TopologicalSorter
 from graphlib import CycleError
 from threading import Thread, active_count
 from queue import Queue
+from random import randrange
 
 import src
 
@@ -53,7 +54,7 @@ class Project():
                     self._deploy()
                 case _:
                     print("Nothing here")
-            time.sleep(1)
+            #time.sleep(randrange(0, 3))
 
 
     def __str__(self):
@@ -83,7 +84,9 @@ def worker(node, projects, ts):
     print(f"<-- Completed {node}")
 
 
-def run(projects):
+def run(projects, jobs):
+    print(f"Using {jobs} CPU cores")
+
     ts = TopologicalSorter()
 
     # Create the DAG, always add "itself".
@@ -94,28 +97,24 @@ def run(projects):
 
     ts.prepare()
     threads = list()
+    active_threads = 0
     while ts.is_active():
         for node in ts.get_ready():
             x = Thread(target=worker, args=(node, projects, ts))
             threads.append(x)
             x.start()
-
-    for thread in threads:
-        print("completing ...")
-        thread.join()
-
-
-
-def print_build_order(dag):
-    print("Build order:")
-    i = 0
-    for x in dag:
-        print(f"  {i}: {x}")
-        i += 1
+            active_threads += 1
+            while active_threads >= jobs:
+                for index, thread in enumerate(threads):
+                    thread.join()
+                    threads.pop(index)
+                    active_threads -= 1
+                    # Just to be on the safe side
+                    if active_threads < 0:
+                        active_threads = 0
 
 
 def build_main(args, workdir):
-    print("Running the build stage")
+    print(f"Running the build stage (-j {args.jobs})")
     projects = gather_projects(args, workdir)
-    dag = run(projects)
-    #print_build_order(dag)
+    dag = run(projects, args.jobs)

@@ -6,6 +6,8 @@ import sys
 
 import src
 
+from multiprocessing import cpu_count
+
 from icecream import install
 install()
 
@@ -40,10 +42,13 @@ def get_args():
                               default=False,
                               help='Use the mirror as a reference')
 
-    clone_parser = subparsers.add_parser('build', help='Build and compile the project')
-    clone_parser.add_argument('-f', '--file', action='store', required=False,
+    build_parser = subparsers.add_parser('build', help='Build and compile the project')
+    build_parser.add_argument('-f', '--file', action='store', required=False,
                               default=None,
                               help='Manifest file')
+    build_parser.add_argument('-j', '--jobs', action='store', required=False,
+                              default=cpu_count(), type=int,
+                              help='How many jobs to run in parallel')
 
     if len(sys.argv) < 2:
         parser.print_help()
