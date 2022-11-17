@@ -1,5 +1,6 @@
 import logging
 import time
+import subprocess
 
 from graphlib import TopologicalSorter
 from graphlib import CycleError
@@ -12,11 +13,13 @@ import src
 stages = ["configure", "compile", "assemble", "deploy"]
 
 class Project():
-    def __init__(self, data):
+    def __init__(self, data, workdir):
         self.name = data['name']
         self.url = data['url']
         self.commit = data['commit']
         self.depends_on = data.get('depends_on', None)
+        self.workdir = f"{workdir}/{data['name']}"
+        self.telios_yml = f"{self.workdir}/telios.yml"
 
 
     def get_dependencies(self) -> list[str]:
@@ -24,8 +27,49 @@ class Project():
             return []
         return self.depends_on.split()
 
+
+    def _get_commands(self, stage):
+        yml_file = self.workdir + "/telios.yml"
+        try:
+            yml = src.load_yml(yml_file)
+        except FileNotFoundError:
+            #print(f"Not found: {yml_file}, trying override")
+            pass
+            return []
+
+        nbr_gits = len(yml[stage])
+        if nbr_gits < 1:
+            print(f"Nothing to do for {self.name} : {stage}")
+            return []
+        cmds = yml[stage]
+        return cmds
+
+
+    def _run_command(self, cmd, parameters):
+        print(f"[{self.name}:run] {cmd} {parameters}")
+        complete_cmd = [cmd]
+        for p in parameters.split():
+            complete_cmd.append(p)
+
+        try:
+            with subprocess.Popen(complete_cmd, stdout=subprocess.PIPE) as proc:
+                print(proc.stdout.read().decode("utf-8"))
+        except FileNotFoundError:
+            logging.error(f"Cannot run command: {cmd}! Not installed? Not in $PATH")
+
+
     def _configure(self):
         print(f"Configuring -> {self.name}")
+        cmds = self._get_commands("configure")
+
+        for c in cmds:
+            print(c)
+            cmd = c.get('cmd', None)
+            if cmd is None:
+                logging.error(f"cmd key without an actual command in {self.telios_yml}")
+                return
+            parameters = c.get('parameter', "")
+            self._run_command(c['cmd'], parameters)
 
 
     def _compile(self):
@@ -71,7 +115,7 @@ def gather_projects(args, workdir):
 
     projects = {}
     for git_data in yml['gits']:
-        projects[git_data['name']] = Project(git_data)
+        projects[git_data['name']] = Project(git_data, workdir)
 
     return projects
 
