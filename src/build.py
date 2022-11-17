@@ -37,51 +37,64 @@ class Project():
             pass
             return []
 
-        nbr_gits = len(yml[stage])
-        if nbr_gits < 1:
-            print(f"Nothing to do for {self.name} : {stage}")
+        nbr_stages = yml.get(stage, None)
+        if nbr_stages is None:
+            logging.debug(f"Nothing to do for {self.name} : {stage}")
             return []
         cmds = yml[stage]
         return cmds
 
 
-    def _run_command(self, cmd, parameters):
+    def _run(self, cmd, parameters):
         print(f"[{self.name}:run] {cmd} {parameters}")
         complete_cmd = [cmd]
-        for p in parameters.split():
-            complete_cmd.append(p)
+
+        if parameters is not None:
+            for p in parameters.split():
+                complete_cmd.append(p)
 
         try:
             with subprocess.Popen(complete_cmd, stdout=subprocess.PIPE) as proc:
+                proc.wait()
                 print(proc.stdout.read().decode("utf-8"))
+                # FIXME: Add stderr support
         except FileNotFoundError:
-            logging.error(f"Cannot run command: {cmd}! Not installed? Not in $PATH")
+            logging.error(f"Cannot run command: '{cmd}'! Not installed? Not in $PATH")
+
+
+    def _run_commands(self, cmds):
+        for c in cmds:
+            cmd = c.get('cmd', None)
+            if cmd is None:
+                logging.error(f"cmd key without an actual command in {self.telios_yml}")
+                return
+
+            parameters = c.get('parameter', None)
+            self._run(cmd, parameters)
 
 
     def _configure(self):
         print(f"Configuring -> {self.name}")
         cmds = self._get_commands("configure")
-
-        for c in cmds:
-            print(c)
-            cmd = c.get('cmd', None)
-            if cmd is None:
-                logging.error(f"cmd key without an actual command in {self.telios_yml}")
-                return
-            parameters = c.get('parameter', "")
-            self._run_command(c['cmd'], parameters)
+        self._run_commands(cmds)
 
 
     def _compile(self):
         print(f"Compiling -> {self.name}")
+        cmds = self._get_commands("compile")
+        self._run_commands(cmds)
 
 
     def _assemble(self):
         print(f"Assemble -> {self.name}")
+        cmds = self._get_commands("assemble")
+        self._run_commands(cmds)
 
 
     def _deploy(self):
         print(f"Deploying -> {self.name}")
+        cmds = self._get_commands("deploy")
+        self._run_commands(cmds)
 
 
     def run(self):
