@@ -53,14 +53,10 @@ class Project():
             for p in parameters.split():
                 complete_cmd.append(p)
 
-        try:
-            with subprocess.Popen(complete_cmd, stdout=subprocess.PIPE, cwd=self.workdir) as proc:
-                out, err = proc.communicate()
-                #print(out.decode("utf-8"))
-                print(err)
-                # FIXME: Add stderr support
-        except FileNotFoundError:
-            logging.error(f"Cannot run command: '{cmd}'! Not installed? Not in $PATH")
+        proc = subprocess.run(complete_cmd, cwd=self.workdir, text=True, capture_output=True)
+        #print(proc.stdout)
+        if proc.returncode != 0:
+            print(f"{self.name} : ERROR [{proc.returncode}]\n{proc.stderr}")
 
 
     def _run_commands(self, cmds):
