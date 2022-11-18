@@ -4,6 +4,7 @@ gits:
   - name: buildroot
     url: git@github.com:buildroot/buildroot.git
     commit: 2020.08.2
+    depends_on: qemu
 
   - name: grub2
     url: https://github.com/rhboot/grub2.git

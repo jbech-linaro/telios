@@ -77,42 +77,11 @@ class Project():
             self._run(cmd, stage, parameters)
 
 
-    def _configure(self):
-        # FIXME: Avoid writing "configure" again and again
-        cmds = self._get_commands("configure")
-        self._run_commands(cmds, "configure")
-
-
-    def _compile(self):
-        cmds = self._get_commands("compile")
-        self._run_commands(cmds, "compile")
-
-
-    def _assemble(self):
-        cmds = self._get_commands("assemble")
-        self._run_commands(cmds, "assemble")
-
-
-    def _deploy(self):
-        cmds = self._get_commands("deploy")
-        self._run_commands(cmds, "deploy")
-
-
     def run(self):
         global stages
         for stage in stages:
-            match stage:
-                case "configure":
-                    self._configure()
-                case "compile":
-                    self._compile()
-                case "assemble":
-                    self._assemble()
-                case "deploy":
-                    self._deploy()
-                case _:
-                    logging.debug("Nothing here")
-            #time.sleep(randrange(0, 3))
+            cmds = self._get_commands(stage)
+            self._run_commands(cmds, stage)
             time.sleep(0.1)
 
 

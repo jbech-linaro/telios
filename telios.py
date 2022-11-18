@@ -3,6 +3,7 @@ import argparse
 import logging
 import os
 import sys
+import time
 
 import src
 
@@ -73,6 +74,7 @@ def main():
 
     workdir = os.environ.get('TELIOS_WORKDIR', '/dev/shm/telios')
 
+    start = time.time()
     if args.command == "clone":
         src.clone_main(args, workdir)
     elif args.command == "build":
@@ -80,7 +82,9 @@ def main():
     else:
         logging.error("No command given")
 
-    print("Done!")
+    end = time.time()
+    delta = round(end - start, 2)
+    print(f"Done! Total time spent: {delta} seconds")
 
 
 if __name__ == "__main__":
