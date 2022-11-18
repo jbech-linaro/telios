@@ -21,4 +21,3 @@ gits:
   - name: u-boot
     url: git@github.com:u-boot/u-boot.git
     commit: v2020.10-rc5
-    depends_on: grub2 linux

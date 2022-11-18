@@ -54,12 +54,16 @@ class Project():
                 complete_cmd.append(p)
 
         print(f"[build:{self.name}:{stage}] {cmd} {parameters if parameters is not None else ''}")
-        proc = subprocess.run(complete_cmd, cwd=self.workdir, text=True,
-                              stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-        print(proc.stdout)
-        if proc.returncode != 0:
-            # FIXME: Make sure stderr is printed together with stdout before this
-            print(f"[build:{self.name}:{stage}:ERROR ({proc.returncode})] {proc.stderr}")
+        with subprocess.Popen(complete_cmd, cwd=self.workdir, text=True,
+                              stdout=subprocess.PIPE, stderr=subprocess.STDOUT) as proc:
+            for line in proc.stdout:
+                print(line, end='')
+
+            proc.wait()
+            if proc.returncode != 0:
+                # FIXME: Make sure stderr is printed together with stdout before this
+                # Try: https://stackoverflow.com/questions/58171673/how-to-unify-stdout-and-stderr-yet-be-able-to-distinguish-between-them
+                print(f"[build:{self.name}:{stage}:ERROR ({proc.returncode})] {proc.stderr}")
 
 
     def _run_commands(self, cmds, stage):
