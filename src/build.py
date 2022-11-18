@@ -2,6 +2,7 @@ import logging
 import time
 import subprocess
 
+from concurrent.futures import ProcessPoolExecutor, as_completed
 from graphlib import TopologicalSorter
 from graphlib import CycleError
 from threading import Thread, active_count
@@ -45,21 +46,23 @@ class Project():
         return cmds
 
 
-    def _run(self, cmd, parameters):
-        print(f"[{self.name}:run] {cmd} {parameters}")
+    def _run(self, cmd, stage, parameters):
         complete_cmd = [cmd]
 
         if parameters is not None:
             for p in parameters.split():
                 complete_cmd.append(p)
 
-        proc = subprocess.run(complete_cmd, cwd=self.workdir, text=True, capture_output=True)
-        #print(proc.stdout)
+        print(f"[build:{self.name}:{stage}] {cmd} {parameters if parameters is not None else ''}")
+        proc = subprocess.run(complete_cmd, cwd=self.workdir, text=True,
+                              stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        print(proc.stdout)
         if proc.returncode != 0:
-            print(f"{self.name} : ERROR [{proc.returncode}]\n{proc.stderr}")
+            # FIXME: Make sure stderr is printed together with stdout before this
+            print(f"[build:{self.name}:{stage}:ERROR ({proc.returncode})] {proc.stderr}")
 
 
-    def _run_commands(self, cmds):
+    def _run_commands(self, cmds, stage):
         for c in cmds:
             cmd = c.get('cmd', None)
             if cmd is None:
@@ -67,31 +70,28 @@ class Project():
                 return
 
             parameters = c.get('parameter', None)
-            self._run(cmd, parameters)
+            self._run(cmd, stage, parameters)
 
 
     def _configure(self):
-        print(f"Configuring -> {self.name}")
+        # FIXME: Avoid writing "configure" again and again
         cmds = self._get_commands("configure")
-        self._run_commands(cmds)
+        self._run_commands(cmds, "configure")
 
 
     def _compile(self):
-        print(f"Compiling -> {self.name}")
         cmds = self._get_commands("compile")
-        self._run_commands(cmds)
+        self._run_commands(cmds, "compile")
 
 
     def _assemble(self):
-        print(f"Assemble -> {self.name}")
         cmds = self._get_commands("assemble")
-        self._run_commands(cmds)
+        self._run_commands(cmds, "assemble")
 
 
     def _deploy(self):
-        print(f"Deploying -> {self.name}")
         cmds = self._get_commands("deploy")
-        self._run_commands(cmds)
+        self._run_commands(cmds, "deploy")
 
 
     def run(self):
@@ -107,8 +107,9 @@ class Project():
                 case "deploy":
                     self._deploy()
                 case _:
-                    print("Nothing here")
+                    logging.debug("Nothing here")
             #time.sleep(randrange(0, 3))
+            time.sleep(0.1)
 
 
     def __str__(self):
@@ -121,7 +122,7 @@ def gather_projects(args, workdir):
     if nbr_gits < 1:
         return None
 
-    print(f"{nbr_gits} gits found in {args.file} ...")
+    print(f"[build] {nbr_gits} gits found in {args.file} ...")
 
     projects = {}
     for git_data in yml['gits']:
@@ -130,17 +131,13 @@ def gather_projects(args, workdir):
     return projects
 
 
-def worker(node, projects, ts):
+def worker(node, projects):
     project = projects[node]
-    print(f"\n--> Started {project.name}")
     project.run()
-    ts.done(node)
-    print(f"<-- Completed {node}")
+    return node
 
 
 def run(projects, jobs):
-    print(f"Using {jobs} CPU cores")
-
     ts = TopologicalSorter()
 
     # Create the DAG, always add "itself".
@@ -150,25 +147,22 @@ def run(projects, jobs):
             ts.add(name, dependency)
 
     ts.prepare()
-    threads = list()
-    active_threads = 0
-    while ts.is_active():
-        for node in ts.get_ready():
-            x = Thread(target=worker, args=(node, projects, ts))
-            threads.append(x)
-            x.start()
-            active_threads += 1
-            while active_threads >= jobs:
-                for index, thread in enumerate(threads):
-                    thread.join()
-                    threads.pop(index)
-                    active_threads -= 1
-                    # Just to be on the safe side
-                    if active_threads < 0:
-                        active_threads = 0
+    with ProcessPoolExecutor(max_workers=jobs) as executor:
+        while ts.is_active():
+            # Make a list of independent jobs, ready to run
+            pending = []
+            for node in ts.get_ready():
+                pending.append(node)
+
+            # Run all independant jobs
+            results = [executor.submit(worker, n, projects) for n in pending]
+            for job in as_completed(results):
+                res = job.result()
+                ts.done(res)
+                print(f"[build:{res}:done]")
 
 
 def build_main(args, workdir):
-    print(f"Running the build stage (-j {args.jobs})")
+    print(f"Telios build (-j{args.jobs})")
     projects = gather_projects(args, workdir)
     dag = run(projects, args.jobs)
