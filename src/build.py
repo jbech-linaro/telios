@@ -137,7 +137,11 @@ def gather_projects(args, workdir):
 
 def worker(node, projects):
     project = projects[node]
+    start = time.time()
     project.run()
+    end = time.time()
+    delta = round(end - start, 2)
+    print(f"[build:{node}:done] ran for {delta} seconds")
     return node
 
 
@@ -163,7 +167,6 @@ def run(projects, jobs):
             for job in as_completed(results):
                 res = job.result()
                 ts.done(res)
-                print(f"[build:{res}:done]")
 
 
 def build_main(args, workdir):
