@@ -1,0 +1,22 @@
+# git telios configuration
+configure:
+  - cmd: make
+    parameter: configure
+
+  - cmd: ./configure
+    parameter: --prefix=/tmp/git
+
+compile:
+  - cmd: make
+    parameter: prefix=/tmp/git all doc -j4
+
+deploy:
+  - cmd: make
+    parameter: install install-doc install-html
+
+# Apt packages
+apt:
+  - 22.04:
+    - packages: libssl-dev libcurl4-openssl-dev gettext autoconf asciidoc
+
+

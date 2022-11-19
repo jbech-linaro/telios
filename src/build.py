@@ -1,5 +1,6 @@
 import logging
 import time
+import os
 import subprocess
 
 from concurrent.futures import ProcessPoolExecutor, as_completed
@@ -21,6 +22,7 @@ class Project():
         self.depends_on = data.get('depends_on', None)
         self.workdir = f"{workdir}/{data['name']}"
         self.telios_yml = f"{self.workdir}/telios.yml"
+        self.override_yml = f"{workdir}/override/{data['name']}.yml"
 
 
     def get_dependencies(self) -> list[str]:
@@ -30,11 +32,14 @@ class Project():
 
 
     def _get_commands(self, stage):
-        yml_file = self.workdir + "/telios.yml"
+        yml_file = self.telios_yml
+        if os.path.isfile(self.override_yml):
+            logging.debug(f"[build:{self.name}:{stage}] Using overide file: {yml_file}")
+            yml_file = self.override_yml
+
         try:
             yml = src.load_yml(yml_file)
         except FileNotFoundError:
-            #print(f"Not found: {yml_file}, trying override")
             pass
             return []
 
@@ -70,7 +75,7 @@ class Project():
         for c in cmds:
             cmd = c.get('cmd', None)
             if cmd is None:
-                logging.error(f"cmd key without an actual command in {self.telios_yml}")
+                logging.error(f"cmd key without an actual command in (FIXME add correct file)")
                 return
 
             parameters = c.get('parameter', None)

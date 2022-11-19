@@ -8,11 +8,14 @@ gits:
   - name: busybox
     url: https://github.com/mirror/busybox.git
     commit: master
+    depends_on: git
 
   - name: strace
     url: https://github.com/strace/strace
     commit: 22f61979141fa5c9732d01ea69c23f46a3e2868a
+    depends_on: git
 
   - name: st
     url: git://git.suckless.org/st
     commit: master
+    depends_on: git
