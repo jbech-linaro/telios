@@ -1,28 +1,33 @@
 import logging
+import shutil
 import time
 import os
 import subprocess
 
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from graphlib import TopologicalSorter
-from graphlib import CycleError
 from threading import Thread, active_count
 from queue import Queue
 from random import randrange
+from datetime import datetime
 
 import src
 
 stages = ["configure", "compile", "assemble", "deploy"]
 
 class Project():
-    def __init__(self, data, workdir):
+    def __init__(self, data, workdir, args):
         self.name = data['name']
         self.url = data['url']
         self.commit = data['commit']
         self.depends_on = data.get('depends_on', None)
-        self.workdir = f"{workdir}/{data['name']}"
-        self.telios_yml = f"{self.workdir}/telios.yml"
+        self.args = args
+        self.workdir = workdir
+        self.task_workdir = f"{workdir}/{data['name']}"
+        self.telios_yml = f"{self.task_workdir}/telios.yml"
         self.override_yml = f"{workdir}/override/{data['name']}.yml"
+        self.error_log = f"{workdir}/errors/{data['name']}.log"
+        self.initialized_log = None
 
 
     def get_dependencies(self) -> list[str]:
@@ -51,6 +56,21 @@ class Project():
         return cmds
 
 
+    def _log_error(self, message):
+        mirror_dir = f"{self.workdir}/errors"
+        if os.path.exists(mirror_dir):
+            if self.initialized_log is None:
+                with open(self.error_log, 'w') as f:
+                    f.write(message)
+                    self.initialized_log = True
+            else:
+                with open(self.error_log, 'a') as f:
+                    f.write(f"\n{message}")
+        else:
+            print("Creating mirror dir")
+            os.makedirs(mirror_dir)
+
+
     def _run(self, cmd, stage, parameters):
         complete_cmd = [cmd]
 
@@ -59,16 +79,33 @@ class Project():
                 complete_cmd.append(p)
 
         print(f"[build:{self.name}:{stage}] {cmd} {parameters if parameters is not None else ''}")
-        with subprocess.Popen(complete_cmd, cwd=self.workdir, text=True,
-                              stdout=subprocess.PIPE, stderr=subprocess.STDOUT) as proc:
-            for line in proc.stdout:
-                print(line, end='')
+        try:
+            if self.args.log_errors:
+                proc = subprocess.run(complete_cmd, cwd=self.task_workdir, text=True, capture_output=True)
+                for line in proc.stdout:
+                    print(line, end='')
 
-            proc.wait()
-            if proc.returncode != 0:
-                # FIXME: Make sure stderr is printed together with stdout before this
-                # Try: https://stackoverflow.com/questions/58171673/how-to-unify-stdout-and-stderr-yet-be-able-to-distinguish-between-them
-                print(f"[build:{self.name}:{stage}:ERROR ({proc.returncode})] {proc.stderr}")
+                if proc.returncode != 0:
+                    error_msg = f"When: {datetime.now().ctime()}\n"
+                    error_msg += f"Command: build\n"
+                    error_msg += f"Git-tree: {self.name}\n"
+                    error_msg += f"Stage: {stage}\n"
+                    error_msg += f"Return code: {proc.returncode}\n"
+                    error_msg += f"Error msg:\n{proc.stderr}"
+                    self._log_error(error_msg)
+            else:
+                with subprocess.Popen(complete_cmd, cwd=self.task_workdir, text=True,
+                                      stdout=subprocess.PIPE, stderr=subprocess.STDOUT) as proc:
+                    for line in proc.stdout:
+                        print(line, end='')
+
+                    proc.wait()
+                    if proc.returncode != 0:
+                        print(f"[build:{self.name}:{stage}:ERROR ({proc.returncode})] {proc.stderr}")
+        except FileNotFoundError:
+            message = f"ERROR: Cannot find command '{cmd}'"
+            print(message)
+            self._log_error(f"{message}\n")
 
 
     def _run_commands(self, cmds, stage):
@@ -104,7 +141,7 @@ def gather_projects(args, workdir):
 
     projects = {}
     for git_data in yml['gits']:
-        projects[git_data['name']] = Project(git_data, workdir)
+        projects[git_data['name']] = Project(git_data, workdir, args)
 
     return projects
 

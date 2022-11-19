@@ -50,6 +50,9 @@ def get_args():
     build_parser.add_argument('-j', '--jobs', action='store', required=False,
                               default=cpu_count(), type=int,
                               help='How many jobs to run in parallel')
+    build_parser.add_argument('--log-errors', action='store_true', required=False,
+                              default=False,
+                              help='Log errors from jobs to individual files')
 
     if len(sys.argv) < 2:
         parser.print_help()
