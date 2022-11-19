@@ -57,18 +57,14 @@ class Project():
 
 
     def _log_error(self, message):
-        mirror_dir = f"{self.workdir}/errors"
-        if os.path.exists(mirror_dir):
-            if self.initialized_log is None:
-                with open(self.error_log, 'w') as f:
-                    f.write(message)
-                    self.initialized_log = True
-            else:
-                with open(self.error_log, 'a') as f:
-                    f.write(f"\n{message}")
+        if self.initialized_log is None:
+            with open(self.error_log, 'w') as f:
+                f.write(message)
+                self.initialized_log = True
         else:
-            print("Creating mirror dir")
-            os.makedirs(mirror_dir)
+            with open(self.error_log, 'a') as f:
+                f.write(f"\n{message}")
+
 
 
     def _run(self, cmd, stage, parameters):
@@ -179,8 +175,19 @@ def run(projects, jobs):
                 res = job.result()
                 ts.done(res)
 
+# FIXME: This function feels bad
+def create_error_log_dir(mirror_dir):
+    print(f"Setting up log dir for errors: {mirror_dir}")
+    try:
+        shutil.rmtree(mirror_dir)
+    except (OSError, FileNotFoundError):
+        pass
+
+    os.makedirs(mirror_dir)
+
 
 def build_main(args, workdir):
     print(f"Telios build (-j{args.jobs})")
     projects = gather_projects(args, workdir)
+    create_error_log_dir(f"{workdir}/errors")
     dag = run(projects, args.jobs)
