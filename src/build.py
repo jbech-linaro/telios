@@ -66,6 +66,14 @@ class Project():
                 f.write(f"\n{message}")
 
 
+    def _open_error_log(self):
+        if self.initialized_log is None:
+            f = open(self.error_log, 'w')
+            self.initialized_log = True
+        else:
+            f = open(self.error_log, 'a')
+        return f
+
 
     def _run(self, cmd, stage, parameters):
         complete_cmd = [cmd]
@@ -75,33 +83,26 @@ class Project():
                 complete_cmd.append(p)
 
         print(f"[build:{self.name}:{stage}] {cmd} {parameters if parameters is not None else ''}")
+        file_or_pipe = subprocess.STDOUT
+        if self.args.log_errors:
+            file_or_pipe = self._open_error_log()
         try:
-            if self.args.log_errors:
-                proc = subprocess.run(complete_cmd, cwd=self.task_workdir, text=True, capture_output=True)
+            with subprocess.Popen(complete_cmd, cwd=self.task_workdir, text=True,
+                                  stdout=subprocess.PIPE, stderr=file_or_pipe) as proc:
                 for line in proc.stdout:
                     print(line, end='')
 
-                if proc.returncode != 0:
-                    error_msg = f"When: {datetime.now().ctime()}\n"
-                    error_msg += f"Command: build\n"
-                    error_msg += f"Git-tree: {self.name}\n"
-                    error_msg += f"Stage: {stage}\n"
-                    error_msg += f"Return code: {proc.returncode}\n"
-                    error_msg += f"Error msg:\n{proc.stderr}"
-                    self._log_error(error_msg)
-            else:
-                with subprocess.Popen(complete_cmd, cwd=self.task_workdir, text=True,
-                                      stdout=subprocess.PIPE, stderr=subprocess.STDOUT) as proc:
-                    for line in proc.stdout:
-                        print(line, end='')
+                proc.wait()
 
-                    proc.wait()
-                    if proc.returncode != 0:
-                        print(f"[build:{self.name}:{stage}:ERROR ({proc.returncode})] {proc.stderr}")
+                if proc.returncode != 0:
+                    print(f"[build:{self.name}:{stage}:ERROR ({proc.returncode})] {proc.stderr}")
         except FileNotFoundError:
             message = f"ERROR: Cannot find command '{cmd}'"
             print(message)
-            self._log_error(f"{message}\n")
+            #self._log_error(f"{message}\n")
+
+        if self.args.log_errors:
+            file_or_pipe.close()
 
 
     def _run_commands(self, cmds, stage):
@@ -175,6 +176,7 @@ def run(projects, jobs):
                 res = job.result()
                 ts.done(res)
 
+
 # FIXME: This function feels bad
 def create_error_log_dir(mirror_dir):
     print(f"Setting up log dir for errors: {mirror_dir}")
@@ -189,5 +191,6 @@ def create_error_log_dir(mirror_dir):
 def build_main(args, workdir):
     print(f"Telios build (-j{args.jobs})")
     projects = gather_projects(args, workdir)
-    create_error_log_dir(f"{workdir}/errors")
+    if args.log_errors:
+        create_error_log_dir(f"{workdir}/errors")
     dag = run(projects, args.jobs)

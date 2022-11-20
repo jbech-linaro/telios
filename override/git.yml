@@ -1,18 +1,27 @@
 # git telios configuration
 configure:
-  - cmd: make
-    parameter: configure
+  - cmd: ls
+    parameter: fooo
 
-  - cmd: ./configure
-    parameter: --prefix=/tmp/git
+      #  - cmd: ./configure
+      #    parameter: --prefix=/tmp/git
 
 compile:
   - cmd: make
-    parameter: prefix=/tmp/git all doc -j4
+    parameter: FOO-BAR=1 prefix=/tmp/git all doc -j4
 
 deploy:
-  - cmd: make
-    parameter: install install-doc install-html
+  #  - cmd: make
+  #    parameter: install install-doc install-html
+
+  - cmd: cat 
+    parameter: find
+
+  - cmd: banana
+    parameter: find
+
+      #  - cmd: ./configure
+      #    parameter: --prefix=/tmp/git
 
 # Apt packages
 apt:
