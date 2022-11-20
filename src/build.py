@@ -101,13 +101,15 @@ class Project():
     def _run(self, cmd, stage, parameters):
         log_cmd = f"[build:{self.name}:{stage}:r] {cmd} {parameters if parameters else ''}\n"
         self._print_and_write(log_cmd, None)
+        proc = None
         try:
             param_list = self._make_command_list(parameters)
-            proc = subprocess.run([cmd] + param_list, cwd=self.task_workdir, text=True,
-                                  capture_output=True)
+            proc = subprocess.Popen([cmd] + param_list, cwd=self.task_workdir, text=True,
+                                    stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             for line in proc.stdout:
                 self._print_and_write(line, None)
 
+            proc.wait()
             if proc.returncode != 0:
                 # Send the log_cmd here to make easier to see in the stderr
                 # log what caused the error.
@@ -120,7 +122,10 @@ class Project():
             self._print_and_write(None, log_cmd)
             extra = f"[build:{self.name}:{stage}:e] Cannot run command '{cmd}'\n"
             self._print_and_write(None, extra)
-            exit(0)
+        finally:
+            if proc:
+                proc.terminate()
+                proc.kill()
 
 
     def _run_commands(self, cmds, stage):
