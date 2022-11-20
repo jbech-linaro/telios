@@ -16,21 +16,35 @@ import src
 stages = ["configure", "compile", "assemble", "deploy"]
 
 class Project():
-    def __init__(self, data, workdir, args):
+    def __init__(self, data, workspace, args):
+        self.workspace = workspace
+        self.args = args
+
         self.name = data['name']
         self.url = data['url']
         self.commit = data['commit']
+
         self.depends_on = data.get('depends_on', None)
-        self.args = args
-        self.workdir = workdir
-        self.task_workdir = f"{workdir}/{data['name']}"
+        self.task_workdir = f"{workspace}/{self.name}"
         self.telios_yml = f"{self.task_workdir}/telios.yml"
-        self.override_yml = f"{workdir}/override/{data['name']}.yml"
-        self.error_log = f"{workdir}/errors/{data['name']}.log"
+        self.override_yml = f"{workspace}/override/{self.name}.yml"
+
         self.initialized_log = None
+        self.stderr_log = [f"{workspace}/errors/{self.name}-stderr.log", None]
+        self.stdout_log = [f"{workspace}/errors/{self.name}-stdout.log", None]
 
 
-    def get_dependencies(self) -> list[str]:
+    def __del__(self):
+        if self.stdout_log[1]:
+            logging.debug(f"{self.name}: close stdout log file")
+            self.stdout_log[1].close()
+
+        if self.stderr_log[1]:
+            self.stderr_log[1].close()
+            logging.debug(f"{self.name}: close stderr log file")
+
+
+    def get_dependencies(self):
         if self.depends_on is None:
             return []
         return self.depends_on.split()
@@ -45,64 +59,67 @@ class Project():
         try:
             yml = src.load_yml(yml_file)
         except FileNotFoundError:
-            pass
             return []
 
         nbr_stages = yml.get(stage, None)
         if nbr_stages is None:
             logging.debug(f"Nothing to do for {self.name} : {stage}")
             return []
+
         cmds = yml[stage]
         return cmds
 
-
-    def _log_error(self, message):
-        if self.initialized_log is None:
-            with open(self.error_log, 'w') as f:
-                f.write(message)
-                self.initialized_log = True
-        else:
-            with open(self.error_log, 'a') as f:
-                f.write(f"\n{message}")
-
-
-    def _open_error_log(self):
-        if self.initialized_log is None:
-            f = open(self.error_log, 'w')
-            self.initialized_log = True
-        else:
-            f = open(self.error_log, 'a')
-        return f
-
-
-    def _run(self, cmd, stage, parameters):
-        complete_cmd = [cmd]
-
-        if parameters is not None:
+    @staticmethod
+    def _make_command_list(parameters):
+        param_list = []
+        if parameters:
             for p in parameters.split():
-                complete_cmd.append(p)
+                param_list.append(p)
+        return param_list
 
-        print(f"[build:{self.name}:{stage}] {cmd} {parameters if parameters is not None else ''}")
-        file_or_pipe = subprocess.STDOUT
-        if self.args.log_errors:
-            file_or_pipe = self._open_error_log()
+
+    def _print_and_write(self, stdout, stderr):
+        if stdout:
+            print(stdout, end='')
+            if self.args.log_stdout:
+                if not self.stdout_log[1]:
+                    logging.debug(f"{self.name}: open stdout log file")
+                    self.stdout_log[1] = open(self.stdout_log[0], 'w')
+                self.stdout_log[1].write(f"{stdout}")
+
+        if stderr:
+            print(stderr, end='')
+            if self.args.log_stderr:
+                if not self.stderr_log[1]:
+                    logging.debug(f"{self.name}: open stderr log file")
+                    self.stderr_log[1] = open(self.stderr_log[0], 'w')
+                self.stderr_log[1].write(f"{stderr}")
+
+    # This will run, print and eventually log stdout and stderr. However, the
+    # order will always be stdout then stderr. I.e., they won't be interleaved
+    # as would be seen when running this directly from commandline.
+    def _run(self, cmd, stage, parameters):
+        log_cmd = f"[build:{self.name}:{stage}] {cmd} {parameters if parameters else ''}\n"
+        self._print_and_write(log_cmd, None)
         try:
-            with subprocess.Popen(complete_cmd, cwd=self.task_workdir, text=True,
-                                  stdout=subprocess.PIPE, stderr=file_or_pipe) as proc:
-                for line in proc.stdout:
-                    print(line, end='')
+            param_list = self._make_command_list(parameters)
+            proc = subprocess.run([cmd] + param_list, cwd=self.task_workdir, text=True,
+                                  capture_output=True)
+            for line in proc.stdout:
+                self._print_and_write(line, None)
 
-                proc.wait()
-
-                if proc.returncode != 0:
-                    print(f"[build:{self.name}:{stage}:ERROR ({proc.returncode})] {proc.stderr}")
+            if proc.returncode != 0:
+                # Send the log_cmd here to make easier to see in the stderro
+                # log what caused the error.
+                self._print_and_write(None, log_cmd)
+                extra = f"[build:{self.name}:{stage}] ERROR rc={proc.returncode}\n"
+                self._print_and_write(None, extra)
+                for line in proc.stderr:
+                    self._print_and_write(None, line)
         except FileNotFoundError:
-            message = f"ERROR: Cannot find command '{cmd}'"
-            print(message)
-            #self._log_error(f"{message}\n")
-
-        if self.args.log_errors:
-            file_or_pipe.close()
+            self._print_and_write(None, log_cmd)
+            extra = f"[build:{self.name}:{stage}] ERROR Cannot find command '{cmd}'\n"
+            self._print_and_write(None, extra)
 
 
     def _run_commands(self, cmds, stage):
@@ -128,7 +145,7 @@ class Project():
         return f"Project {self.name}\n {self.url} : {self.commit}\n {self.depends_on}"
 
 
-def gather_projects(args, workdir):
+def gather_projects(args, workspace):
     yml = src.load_yml(args.file)
     nbr_gits = len(yml['gits'])
     if nbr_gits < 1:
@@ -138,7 +155,7 @@ def gather_projects(args, workdir):
 
     projects = {}
     for git_data in yml['gits']:
-        projects[git_data['name']] = Project(git_data, workdir, args)
+        projects[git_data['name']] = Project(git_data, workspace, args)
 
     return projects
 
@@ -188,9 +205,9 @@ def create_error_log_dir(mirror_dir):
     os.makedirs(mirror_dir)
 
 
-def build_main(args, workdir):
+def build_main(args, workspace):
     print(f"Telios build (-j{args.jobs})")
-    projects = gather_projects(args, workdir)
-    if args.log_errors:
-        create_error_log_dir(f"{workdir}/errors")
+    projects = gather_projects(args, workspace)
+    if args.log_stdout or args.log_stderr:
+        create_error_log_dir(f"{workspace}/errors")
     dag = run(projects, args.jobs)
