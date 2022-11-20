@@ -99,7 +99,7 @@ class Project():
     # order will always be stdout then stderr. I.e., they won't be interleaved
     # as would be seen when running this directly from commandline.
     def _run(self, cmd, stage, parameters):
-        log_cmd = f"[build:{self.name}:{stage}] {cmd} {parameters if parameters else ''}\n"
+        log_cmd = f"[build:{self.name}:{stage}:r] {cmd} {parameters if parameters else ''}\n"
         self._print_and_write(log_cmd, None)
         try:
             param_list = self._make_command_list(parameters)
@@ -109,17 +109,18 @@ class Project():
                 self._print_and_write(line, None)
 
             if proc.returncode != 0:
-                # Send the log_cmd here to make easier to see in the stderro
+                # Send the log_cmd here to make easier to see in the stderr
                 # log what caused the error.
                 self._print_and_write(None, log_cmd)
-                extra = f"[build:{self.name}:{stage}] ERROR rc={proc.returncode}\n"
+                extra = f"[build:{self.name}:{stage}:e] rc={proc.returncode}\n"
                 self._print_and_write(None, extra)
                 for line in proc.stderr:
                     self._print_and_write(None, line)
         except FileNotFoundError:
             self._print_and_write(None, log_cmd)
-            extra = f"[build:{self.name}:{stage}] ERROR Cannot find command '{cmd}'\n"
+            extra = f"[build:{self.name}:{stage}:e] Cannot run command '{cmd}'\n"
             self._print_and_write(None, extra)
+            exit(0)
 
 
     def _run_commands(self, cmds, stage):
