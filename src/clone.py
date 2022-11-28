@@ -4,7 +4,7 @@ from git import RemoteProgress
 from multiprocessing import Pool, TimeoutError
 from random import randrange
 from threading import Thread, active_count
-from time import sleep
+from time import sleep, time
 import logging
 import pathlib
 import shutil
@@ -17,6 +17,15 @@ class CloneProgress(RemoteProgress):
 
 def show(args):
     print("show")
+
+
+def timer(func):
+    def wrapper(*args, **kwargs):
+        t1 = time()
+        result = func(*args, **kwargs)
+        t2 = time()
+        print(f"{func.__name__} completed in {(t2-t1):0.2f}s")
+    return wrapper
 
 
 def create_remote(repository, remote_name, remote_url):
@@ -63,6 +72,7 @@ def wipe_path(dest):
         shutil.rmtree(path)
 
 
+@timer
 def clone_single(args, workdir, mirror, git_data):
     git_name = git_data['name']
     git_url = git_data['url']
